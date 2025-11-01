@@ -286,7 +286,7 @@ npm start
 
 # 6. Start frontend (in new terminal)
 cd packages/nextjs
-pnpm dev
+yarn dev
 ```
 
 ### Test Demo Flow
