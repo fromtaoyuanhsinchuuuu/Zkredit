@@ -39,7 +39,7 @@ export class WorkerAgent {
     return { proof, publicInputs: { minimumIncome, workerAgentId: this.agentId.toString(), timestamp }, proofType: 'income' };
   }
 
-  async generateCreditHistoryProof(minimumTransactions: number = 5) {
+  async generateCreditHistoryProof(minimumTransactions: number = 1) {
     const count = this.privateData.transactionHistory.length;
     console.log('\nCredit History ZK Proof: actual=' + count + ', proving >=' + minimumTransactions);
     if (count < minimumTransactions) {
@@ -62,7 +62,7 @@ export class WorkerAgent {
   async applyForLoan(amount: number) {
     console.log('\n=== LOAN APPLICATION: $' + amount + ' ===');
     const income = await this.generateIncomeProof(500);
-    const credit = await this.generateCreditHistoryProof(5);
+    const credit = await this.generateCreditHistoryProof(1);
     const collateral = await this.generateCollateralProof(10000);
     console.log('=== ALL ZK PROOFS GENERATED ===\n');
     return { success: true, message: 'Loan application submitted', zkProofs: { income, creditHistory: credit, collateral } };

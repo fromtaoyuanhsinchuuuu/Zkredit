@@ -427,7 +427,7 @@ export default function DemoPage() {
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="text-sm text-base-content/70">Public Claim:</p>
-                        <p className="font-mono">&quot;I have ≥ 5 transactions&quot;</p>
+                        <p className="font-mono">&quot;I have ≥ 1 transaction&quot;</p>
                       </div>
                       <div className="badge badge-success">✓ Verifiable</div>
                     </div>

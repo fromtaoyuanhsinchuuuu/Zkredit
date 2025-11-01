@@ -46,6 +46,61 @@ let demoRemittanceAgent: RemittanceAgent | null = null;
 let demoReceiverAgent: ReceiverAgent | null = null;
 
 /**
+ * Auto-initialize all demo agents on startup
+ */
+const initializeDemoAgents = () => {
+  console.log('🤖 Initializing demo agents...');
+  
+  try {
+    // Worker Agent (Agent #1)
+    demoWorkerAgent = new WorkerAgent(
+      BigInt(1),
+      client,
+      operatorKey,
+      {
+        monthlyIncome: 800,
+        landValue: 15000,
+        gpsCoordinates: { latitude: 16.8661, longitude: 96.1951 }
+      }
+    );
+    console.log('   ✅ Worker Agent #1 initialized');
+
+    // Credit Assessment Agent (Agent #2)
+    demoCreditAgent = new CreditAssessmentAgent(
+      BigInt(2),
+      client,
+      operatorKey
+    );
+    console.log('   ✅ Credit Assessment Agent #2 initialized');
+
+    // Remittance Agent (Agent #3)
+    demoRemittanceAgent = new RemittanceAgent(
+      BigInt(3),
+      client,
+      operatorKey
+    );
+    console.log('   ✅ Remittance Agent #3 initialized');
+
+    // Receiver Agent (Agent #4)
+    demoReceiverAgent = new ReceiverAgent(
+      BigInt(4),
+      client,
+      operatorKey,
+      operatorId
+    );
+    console.log('   ✅ Receiver Agent #4 initialized');
+    
+    console.log('🎉 All demo agents ready!\n');
+  } catch (error: any) {
+    console.error('❌ Failed to initialize demo agents:', error.message);
+    console.error('   Please check your environment variables and Hedera configuration.');
+  }
+};
+
+// Initialize agents on startup
+initializeDemoAgents();
+
+/**
  * Health check endpoint
  */
 app.get('/health', (req, res) => {
@@ -665,14 +720,25 @@ app.post('/demo/complete-flow', async (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 ZKredit Agent Backend running on port ${PORT}`);
-  console.log(`📡 Hedera Network: Testnet`);
+  console.log('\n🚀 ZKredit Agent Backend');
+  console.log('='.repeat(50));
+  console.log(`📡 Server: http://localhost:${PORT}`);
+  console.log(`🌐 Hedera Network: Testnet`);
   console.log(`👤 Operator Account: ${operatorId.toString()}`);
   console.log(`🔧 Plugin: ${zkreditPlugin.name} v${zkreditPlugin.version}`);
   console.log(`🛠️  Available tools: ${tools.length}`);
   console.log('');
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Tools list: http://localhost:${PORT}/tools`);
+  console.log(`🤖 Demo Agents Status:`);
+  console.log(`   Worker Agent #1: ${demoWorkerAgent ? '✅ Ready' : '❌ Not initialized'}`);
+  console.log(`   Credit Agent #2: ${demoCreditAgent ? '✅ Ready' : '❌ Not initialized'}`);
+  console.log(`   Remittance Agent #3: ${demoRemittanceAgent ? '✅ Ready' : '❌ Not initialized'}`);
+  console.log(`   Receiver Agent #4: ${demoReceiverAgent ? '✅ Ready' : '❌ Not initialized'}`);
+  console.log('');
+  console.log('📍 Endpoints:');
+  console.log(`   Health: http://localhost:${PORT}/health`);
+  console.log(`   Tools: http://localhost:${PORT}/tools`);
+  console.log(`   Demo: http://localhost:3000/demo`);
+  console.log('='.repeat(50));
 });
 
 // Graceful shutdown
