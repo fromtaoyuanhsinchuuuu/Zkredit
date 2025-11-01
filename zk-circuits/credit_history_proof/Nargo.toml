@@ -1,0 +1,6 @@
+[package]
+name = "credit_history_proof"
+type = "bin"
+authors = [""]
+
+[dependencies]

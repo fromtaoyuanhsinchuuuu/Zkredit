@@ -28,7 +28,8 @@ pgn = "https://rpc.publicgoods.network"
 pgnTestnet = "https://sepolia.publicgoods.network"
 
 # Hedera Network
-hederaTestnet = "https://testnet.hashio.io/api"
+hederaTestnet = "${HEDERA_RPC_URL}"
+testnet = "${HEDERA_RPC_URL}"
 hederaMainnet = "https://mainnet.hashio.io/api"
 
 localhost = "http://127.0.0.1:8545"

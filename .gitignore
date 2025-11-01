@@ -21,3 +21,9 @@ node_modules
 
 # cli
 dist
+ 
+# Environment files
+# Local environment variables (API keys, secrets)
+.env
+# Backend-specific env
+agent-backend/.env
