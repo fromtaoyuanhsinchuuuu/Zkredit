@@ -186,7 +186,7 @@ export default function DemoPage() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-2">🔐 ZKredit Demo</h1>
+        <h1 className="text-4xl font-bold mb-2">🔐 ZKredit</h1>
         <p className="text-lg text-base-content/70">Zero-Knowledge Credit System for Cross-Border Workers</p>
       </div>
 
