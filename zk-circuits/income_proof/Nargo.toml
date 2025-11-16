@@ -1,0 +1,6 @@
+[package]
+name = "income_proof"
+type = "bin"
+authors = [""]
+
+[dependencies]
