@@ -222,7 +222,7 @@ export class CreditAssessmentAgent {
    * Make decision using Groq AI
    * AI analyzes the credit profile and provides reasoning
    */
-  private async makeDecisionWithAI(
+  protected async makeDecisionWithAI(
     creditScore: number,
     requestedAmount: number,
     verificationResults: any
@@ -315,7 +315,7 @@ Consider:
   /**
    * Fallback decision rules (if AI fails)
    */
-  private fallbackDecision(creditScore: number, requestedAmount: number): {
+  protected fallbackDecision(creditScore: number, requestedAmount: number): {
     approved: boolean;
     maxAmount: number;
     interestRate: number;

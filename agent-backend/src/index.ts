@@ -7,6 +7,7 @@ import { createCreditAssessmentPluginTools } from './plugins/creditAssessmentPlu
 import { generateFeedbackAuthForClient } from './services/feedbackAuthService';
 import { WorkerAgent } from './agents/WorkerAgent';
 import { CreditAssessmentAgent } from './agents/CreditAssessmentAgent';
+import { CreditAssessmentAgent2 } from './agents/CreditAssessmentAgent2';
 import { RemittanceAgent } from './agents/RemittanceAgent';
 import { ReceiverAgent } from './agents/ReceiverAgent';
 import { getHederaAgentTools } from './services/agentToolkit';
@@ -34,9 +35,245 @@ const registryTools = zkreditPlugin.tools(context);
 const creditAssessmentTools = createCreditAssessmentPluginTools({ client, operatorKey });
 const tools: any[] = [...registryTools, ...creditAssessmentTools];
 
+type CreditAgentProfile = {
+  id: string;
+  name: string;
+  corridor: string;
+  sponsor: string;
+  agentType: 'ngo' | 'defi' | 'experimental';
+  status: 'active' | 'coming_soon';
+  description: string;
+  tagline: string;
+  strengths: string[];
+  instance?: CreditAssessmentAgent;
+};
+
+const DEFAULT_CORRIDOR = 'middle-east-to-philippines';
+
+const creditAgentDirectory: CreditAgentProfile[] = [
+  {
+    id: 'credit_agent_low_interest',
+    name: 'NGO Low-Interest Agent',
+    corridor: DEFAULT_CORRIDOR,
+    sponsor: 'Solidarity NGO',
+    agentType: 'ngo',
+    status: 'active',
+    description: 'Community-backed agent that prioritizes low interest loans for domestic workers.',
+    tagline: 'Trust-based loans capped at 8% APR',
+    strengths: ['Community reputation', 'Short tenors', 'ERC-8004 verified'],
+  },
+  {
+    id: 'credit_agent_defi_plus',
+    name: 'DeFi Liquidity Pool Agent',
+    corridor: DEFAULT_CORRIDOR,
+    sponsor: 'Cross-Border DeFi LP',
+    agentType: 'defi',
+    status: 'active',
+    description: 'Commercial agent that prices risk dynamically and settles via HTS + x402.',
+    tagline: 'Bigger tickets for zk_verified borrowers',
+    strengths: ['HTS liquidity', 'x402 native', 'AI underwriting'],
+  },
+  {
+    id: 'credit_agent_experimental',
+    name: 'Experimental Credit Lab',
+    corridor: DEFAULT_CORRIDOR,
+    sponsor: 'Research Collective',
+    agentType: 'experimental',
+    status: 'coming_soon',
+    description: 'Early-stage agent piloting programmable repayments and FX hedging.',
+    tagline: 'Future multi-corridor agent (waitlist open)',
+    strengths: ['Programmable repayments', 'Multi-currency roadmap'],
+  },
+];
+
+const loanOfferTemplates: Record<string, {
+  amount: number;
+  interestRate: number;
+  tenureMonths: number;
+  disbursementHours: number;
+  repaymentFrequency: string;
+}> = {
+  credit_agent_low_interest: { amount: 100, interestRate: 8, tenureMonths: 3, disbursementHours: 4, repaymentFrequency: 'monthly' },
+  credit_agent_defi_plus: { amount: 150, interestRate: 10, tenureMonths: 4, disbursementHours: 2, repaymentFrequency: 'monthly' },
+};
+
+const loanAnalysisTemplates: Record<string, {
+  incomeBand: string;
+  employmentMonths: number;
+  repaymentHistory: string;
+  hcsTopic: string;
+}> = {
+  credit_agent_low_interest: {
+    incomeBand: 'USD 650-820 / month',
+    employmentMonths: 18,
+    repaymentHistory: '3/3 on-time transfers logged on HCS topic 0.0.920393',
+    hcsTopic: '0.0.920393',
+  },
+  credit_agent_defi_plus: {
+    incomeBand: 'USD 700-900 / month',
+    employmentMonths: 20,
+    repaymentHistory: '5 settlements verified via ERC-8004 feedback proofs',
+    hcsTopic: '0.0.920393',
+  },
+};
+
+type WorkerZkProofs = {
+  income: any;
+  creditHistory: any;
+  collateral: any;
+};
+
+type CreditAssessmentDecision = Awaited<ReturnType<CreditAssessmentAgent['processLoanApplication']>>;
+
+type LoanOfferTemplate = {
+  amount: number;
+  interestRate: number;
+  tenureMonths: number;
+  disbursementHours: number;
+  repaymentFrequency: string;
+};
+
+const DEFAULT_LOAN_TEMPLATE: LoanOfferTemplate = {
+  amount: 120,
+  interestRate: 12,
+  tenureMonths: 3,
+  disbursementHours: 6,
+  repaymentFrequency: 'monthly',
+};
+
+const getCreditAgentProfile = (profileId: string) =>
+  creditAgentDirectory.find((profile) => profile.id === profileId);
+
+const getLoanTemplateForProfile = (profileId: string): LoanOfferTemplate =>
+  loanOfferTemplates[profileId] || DEFAULT_LOAN_TEMPLATE;
+
+const getAnalysisTemplateForProfile = (profileId: string) =>
+  loanAnalysisTemplates[profileId];
+
+const syncCreditAgentDirectoryInstances = () => {
+  creditAgentDirectory.forEach((profile) => {
+    if (profile.id === 'credit_agent_low_interest') {
+      profile.instance = demoCreditAgent || undefined;
+    } else if (profile.id === 'credit_agent_defi_plus') {
+      profile.instance = demoCreditAgentB || undefined;
+    }
+  });
+};
+
+type EvaluateCorridorCreditOffersInput = {
+  workerAgentId: string;
+  requestedAmount: number;
+  zkProofs: WorkerZkProofs;
+  agentOverrides?: Partial<Record<string, CreditAssessmentAgent>>;
+};
+
+const evaluateCorridorCreditOffers = async ({
+  workerAgentId,
+  requestedAmount,
+  zkProofs,
+  agentOverrides = {},
+}: EvaluateCorridorCreditOffersInput) => {
+  const activeProfiles = creditAgentDirectory.filter(
+    (profile) => profile.status === 'active'
+  );
+
+  const offers = [] as Array<{
+    agentId: string;
+    agentName: string;
+    sponsor: string;
+    corridor: string;
+    agentType: string;
+    tagline: string;
+    strengths: string[];
+    status: string;
+    offer: {
+      amount: number;
+      apr: number;
+      tenureMonths: number;
+      disbursementHours: number;
+      repaymentFrequency: string;
+      approved: boolean;
+      rationale: string;
+      creditScore: number;
+    };
+    underwritingSummary?: {
+      incomeBand: string;
+      employmentMonths: number;
+      repaymentHistory: string;
+      hcsTopic: string;
+    };
+    decision: CreditAssessmentDecision;
+    rank?: number;
+  }>;
+
+  for (const profile of activeProfiles) {
+    const instance = agentOverrides[profile.id] || profile.instance;
+    if (!instance) {
+      continue;
+    }
+
+    const decision = await instance.processLoanApplication({
+      applicantAgentId: workerAgentId,
+      requestedAmount,
+      zkProofs,
+    });
+
+    const template = getLoanTemplateForProfile(profile.id);
+    const analysisTemplate = getAnalysisTemplateForProfile(profile.id);
+
+    offers.push({
+      agentId: profile.id,
+      agentName: profile.name,
+      sponsor: profile.sponsor,
+      corridor: profile.corridor,
+      agentType: profile.agentType,
+      tagline: profile.tagline,
+      strengths: profile.strengths,
+      status: profile.status,
+      offer: {
+        amount: decision.maxLoanAmount || template.amount,
+        apr: decision.interestRate || template.interestRate,
+        tenureMonths: template.tenureMonths,
+        disbursementHours: template.disbursementHours,
+        repaymentFrequency: template.repaymentFrequency,
+        approved: decision.approved,
+        rationale: decision.reason,
+        creditScore: decision.creditScore,
+      },
+      underwritingSummary: analysisTemplate,
+      decision,
+    });
+  }
+
+  offers.sort((a, b) => {
+    if (b.offer.amount !== a.offer.amount) {
+      return b.offer.amount - a.offer.amount;
+    }
+    if (a.offer.apr !== b.offer.apr) {
+      return a.offer.apr - b.offer.apr;
+    }
+    return a.offer.disbursementHours - b.offer.disbursementHours;
+  });
+
+  offers.forEach((offer, index) => {
+    offer.rank = index + 1;
+  });
+
+  return {
+    corridor: DEFAULT_CORRIDOR,
+    requestedAmount,
+    workerAgentId,
+    offers,
+    selectedOffer: offers[0] || null,
+    comparedAgents: offers.length,
+    selectionCriteria: 'Prefers highest amount, lowest APR, then fastest disbursement',
+  };
+};
+
 // Initialize agents for demo
 let demoWorkerAgent: WorkerAgent | null = null;
 let demoCreditAgent: CreditAssessmentAgent | null = null;
+let demoCreditAgentB: CreditAssessmentAgent | null = null;
 let demoRemittanceAgent: RemittanceAgent | null = null;
 let demoReceiverAgent: ReceiverAgent | null = null;
 
@@ -68,6 +305,14 @@ const initializeDemoAgents = () => {
     );
     console.log('   ✅ Credit Assessment Agent #2 initialized');
 
+    // Credit Assessment Agent B (Agent #2B)
+    demoCreditAgentB = new CreditAssessmentAgent2(
+      BigInt(5),
+      client,
+      operatorKey
+    );
+    console.log('   ✅ Credit Assessment Agent #2B initialized (alternative offer)');
+
     // Remittance Agent (Agent #3)
     demoRemittanceAgent = new RemittanceAgent(
       BigInt(3),
@@ -85,6 +330,7 @@ const initializeDemoAgents = () => {
     );
     console.log('   ✅ Receiver Agent #4 initialized');
     
+  syncCreditAgentDirectoryInstances();
     console.log('🎉 All demo agents ready!\n');
   } catch (error: any) {
     console.error('❌ Failed to initialize demo agents:', error.message);
@@ -284,6 +530,34 @@ app.get('/contracts', (req, res) => {
  */
 
 /**
+ * Credit Agent Directory
+ * GET /agents/credit/directory
+ */
+app.get('/agents/credit/directory', (req, res) => {
+  const corridor = typeof req.query.corridor === 'string' ? req.query.corridor : DEFAULT_CORRIDOR;
+  const agents = creditAgentDirectory
+    .filter((profile) => profile.corridor === corridor)
+    .map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+      sponsor: profile.sponsor,
+      corridor: profile.corridor,
+      agentType: profile.agentType,
+      status: profile.status,
+      tagline: profile.tagline,
+      strengths: profile.strengths,
+      description: profile.description,
+      online: Boolean(profile.instance),
+    }));
+
+  res.json({
+    success: true,
+    corridor,
+    agents,
+  });
+});
+
+/**
  * Create Worker Agent
  * POST /agents/worker/create
  */
@@ -379,22 +653,40 @@ app.post('/agents/worker/apply-loan', async (req, res) => {
  */
 app.post('/agents/credit/create', async (req, res) => {
   try {
-    const { agentId } = req.body;
+    const { agentId, profileId = 'credit_agent_low_interest' } = req.body;
     
     if (!agentId) {
       return res.status(400).json({ error: 'agentId required' });
     }
 
-    demoCreditAgent = new CreditAssessmentAgent(
-      BigInt(agentId),
-      client,
-      operatorKey
-    );
+    const numericAgentId = BigInt(agentId);
+    const supportedProfiles = ['credit_agent_low_interest', 'credit_agent_defi_plus'];
+
+    if (!supportedProfiles.includes(profileId)) {
+      return res.status(400).json({ error: `Unsupported credit agent profile ${profileId}` });
+    }
+
+    if (profileId === 'credit_agent_low_interest') {
+      demoCreditAgent = new CreditAssessmentAgent(
+        numericAgentId,
+        client,
+        operatorKey
+      );
+    } else if (profileId === 'credit_agent_defi_plus') {
+      demoCreditAgentB = new CreditAssessmentAgent2(
+        numericAgentId,
+        client,
+        operatorKey
+      );
+    }
+
+    syncCreditAgentDirectoryInstances();
 
     res.json({
       success: true,
       message: 'Credit Assessment Agent created',
-      agentId: agentId
+      agentId: agentId,
+      profileId,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -407,11 +699,12 @@ app.post('/agents/credit/create', async (req, res) => {
  */
 app.post('/agents/credit/process-loan', async (req, res) => {
   try {
-    if (!demoCreditAgent) {
-      return res.status(400).json({ error: 'Credit agent not initialized. Call /agents/credit/create first' });
-    }
+    const { applicantAgentId, requestedAmount, zkProofs, profileId = 'credit_agent_low_interest' } = req.body;
 
-    const { applicantAgentId, requestedAmount, zkProofs } = req.body;
+    const agentInstance = profileId === 'credit_agent_defi_plus' ? demoCreditAgentB : demoCreditAgent;
+    if (!agentInstance) {
+      return res.status(400).json({ error: `Credit agent (${profileId}) not initialized. Call /agents/credit/create first` });
+    }
 
     if (!applicantAgentId || !requestedAmount || !zkProofs) {
       return res.status(400).json({ 
@@ -419,15 +712,58 @@ app.post('/agents/credit/process-loan', async (req, res) => {
       });
     }
 
-    const result = await demoCreditAgent.processLoanApplication({
+    const result = await agentInstance.processLoanApplication({
       applicantAgentId,
       requestedAmount,
       zkProofs
     });
 
+    const profile = getCreditAgentProfile(profileId);
+
     res.json({
       success: true,
+      profileId,
+      agentName: profile?.name,
       result
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Fetch multi-agent credit offers for a worker
+ * POST /agents/credit/offers
+ */
+app.post('/agents/credit/offers', async (req, res) => {
+  try {
+    const {
+      workerAgentId = '1',
+      requestedAmount = 120,
+      zkProofs,
+    } = req.body;
+
+    let preparedProofs = zkProofs as WorkerZkProofs | undefined;
+
+    if (!preparedProofs) {
+      if (!demoWorkerAgent) {
+        return res.status(400).json({ error: 'No zkProofs supplied and demo worker agent not initialized.' });
+      }
+
+      const application = await demoWorkerAgent.applyForLoan(requestedAmount);
+      preparedProofs = application.zkProofs as WorkerZkProofs;
+    }
+
+    const offers = await evaluateCorridorCreditOffers({
+      workerAgentId: workerAgentId.toString(),
+      requestedAmount,
+      zkProofs: preparedProofs,
+    });
+
+    res.json({
+      success: true,
+      autoGeneratedProofs: !zkProofs,
+      offers,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -662,6 +998,7 @@ app.post('/demo/complete-flow', async (req, res) => {
 
     // Step 1: Create all agents
     console.log('📝 Step 1: Creating agents...');
+    const normalizedWorkerAgentId = (workerAgentId || '1').toString();
     const worker = new WorkerAgent(BigInt(workerAgentId || 1), client, operatorKey, {
       monthlyIncome: 800,
       transactionHistory: [
@@ -673,7 +1010,10 @@ app.post('/demo/complete-flow', async (req, res) => {
       ],
       landValue: 15000
     });
-    const credit = new CreditAssessmentAgent(BigInt(creditAgentId || 2), client, operatorKey);
+    const primaryCreditAgentId = BigInt(creditAgentId || 2);
+    const secondaryCreditAgentId = primaryCreditAgentId + 100n;
+    const credit = new CreditAssessmentAgent(primaryCreditAgentId, client, operatorKey);
+    const creditAlt = new CreditAssessmentAgent2(secondaryCreditAgentId, client, operatorKey);
     const remittance = new RemittanceAgent(BigInt(remittanceAgentId || 3), client, operatorKey);
     const receiver = new ReceiverAgent(BigInt(receiverAgentId || 4), client, operatorKey, operatorId);
 
@@ -707,15 +1047,31 @@ app.post('/demo/complete-flow', async (req, res) => {
 
     // Step 4: Apply for loan with ZK proofs
     console.log('\n📝 Step 4: Applying for loan with ZK proofs...');
-    const loanApplication = await worker.applyForLoan(300);
+    const requestedLoanAmount = 300;
+    const loanApplication = await worker.applyForLoan(requestedLoanAmount);
 
-    // Step 5: Credit agent processes loan
-    console.log('\n📝 Step 5: Credit agent processing loan...');
-    const creditResult = await credit.processLoanApplication({
-      applicantAgentId: workerAgentId || '1',
-      requestedAmount: 300,
-      zkProofs: loanApplication.zkProofs
+    // Step 5: Compare multi-agent credit offers
+    console.log('\n📝 Step 5: Comparing corridor credit offers...');
+    const corridorOffers = await evaluateCorridorCreditOffers({
+      workerAgentId: normalizedWorkerAgentId,
+      requestedAmount: requestedLoanAmount,
+      zkProofs: loanApplication.zkProofs as WorkerZkProofs,
+      agentOverrides: {
+        credit_agent_low_interest: credit,
+        credit_agent_defi_plus: creditAlt,
+      },
     });
+
+    corridorOffers.offers.forEach((offer) => {
+      console.log(`   • ${offer.agentName} (${offer.sponsor}) -> $${offer.offer.amount} at ${offer.offer.apr}% APR for ${offer.offer.tenureMonths} months`);
+    });
+
+    const selectedOffer = corridorOffers.selectedOffer;
+    if (selectedOffer) {
+      console.log(`\n🏆 Worker Agent selects ${selectedOffer.agentName} because it offers $${selectedOffer.offer.amount} at ${selectedOffer.offer.apr}% with ${selectedOffer.offer.tenureMonths} month tenor.`);
+    }
+
+    const creditResult = selectedOffer?.decision || null;
 
     console.log('\n🎬 === COMPLETE DEMO FLOW END ===\n');
 
@@ -732,16 +1088,18 @@ app.post('/demo/complete-flow', async (req, res) => {
         step2_remittance: remittanceResult,
         step3_confirmation: confirmResult,
         step4_loan_application: loanApplication,
+        step5_credit_marketplace: corridorOffers,
         step5_credit_decision: creditResult
       },
       summary: {
         remittanceSent: `$${remittanceResult.netAmount}`,
         receiptConfirmed: confirmResult.verified,
-        loanRequested: `$${300}`,
-        loanApproved: creditResult.approved,
-        loanAmount: `$${creditResult.maxLoanAmount}`,
-        interestRate: `${creditResult.interestRate}%`,
-        creditScore: `${creditResult.creditScore}/110`
+        loanRequested: `$${requestedLoanAmount}`,
+        loanApproved: creditResult?.approved ?? false,
+        loanAmount: creditResult ? `$${creditResult.maxLoanAmount}` : 'N/A',
+        interestRate: creditResult ? `${creditResult.interestRate}%` : 'N/A',
+        creditScore: creditResult ? `${creditResult.creditScore}/110` : 'N/A',
+        selectedCreditAgent: selectedOffer?.agentName || 'No offer available'
       }
     });
   } catch (error: any) {
@@ -767,6 +1125,7 @@ app.listen(PORT, () => {
   console.log(`🤖 Demo Agents Status:`);
   console.log(`   Worker Agent #1: ${demoWorkerAgent ? '✅ Ready' : '❌ Not initialized'}`);
   console.log(`   Credit Agent #2: ${demoCreditAgent ? '✅ Ready' : '❌ Not initialized'}`);
+  console.log(`   Credit Agent #2B: ${demoCreditAgentB ? '✅ Ready' : '❌ Not initialized'}`);
   console.log(`   Remittance Agent #3: ${demoRemittanceAgent ? '✅ Ready' : '❌ Not initialized'}`);
   console.log(`   Receiver Agent #4: ${demoReceiverAgent ? '✅ Ready' : '❌ Not initialized'}`);
   console.log('');
