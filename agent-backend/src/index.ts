@@ -40,6 +40,22 @@ const registryTools = zkreditPlugin.tools(context);
 const creditAssessmentTools = createCreditAssessmentPluginTools({ client, operatorKey });
 const tools: any[] = [...registryTools, ...creditAssessmentTools];
 
+const sanitizeBigInt = (value: any): any => {
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(sanitizeBigInt);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, val]) => [key, sanitizeBigInt(val)]));
+  }
+
+  return value;
+};
+
 type CreditAgentProfile = {
   id: string;
   name: string;
@@ -656,7 +672,7 @@ app.post('/agents/worker/send-remittance', async (req, res) => {
       corridor,
     });
 
-    res.json({ success: true, result });
+    res.json({ success: true, result: sanitizeBigInt(result) });
   } catch (error: any) {
     console.error('Remittance API error:', error);
     res.status(500).json({ error: error.message });

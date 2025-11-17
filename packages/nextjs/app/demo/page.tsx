@@ -113,7 +113,9 @@ export default function DemoPage() {
     name: "Fatima",
   });
   const [familyAccountId, setFamilyAccountId] = useState("0.0.987654");
-  const [remittanceAmount, setRemittanceAmount] = useState(200);
+  const initialRemittanceAmount = 200;
+  const [remittanceAmount, setRemittanceAmount] = useState(initialRemittanceAmount);
+  const [remittanceAmountInput, setRemittanceAmountInput] = useState(initialRemittanceAmount.toString());
   const [loanAmount, setLoanAmount] = useState(300);
   const [remittanceResult, setRemittanceResult] = useState<RemittanceResult | null>(null);
   const [remittanceLedger, setRemittanceLedger] = useState<RemittanceLedgerData | null>(null);
@@ -141,6 +143,23 @@ export default function DemoPage() {
       });
     } else {
       setLoanResult(null);
+    }
+  };
+
+  const handleRemittanceAmountChange = (rawValue: string) => {
+    if (rawValue === "") {
+      setRemittanceAmountInput("");
+      setRemittanceAmount(0);
+      return;
+    }
+
+    const normalizedValue = rawValue.replace(/^0+(?=\d)/, "");
+    const displayValue = normalizedValue === "" ? "0" : normalizedValue;
+    setRemittanceAmountInput(displayValue);
+
+    const numericValue = Number(displayValue);
+    if (!Number.isNaN(numericValue)) {
+      setRemittanceAmount(numericValue);
     }
   };
 
@@ -458,8 +477,8 @@ export default function DemoPage() {
                   </label>
                   <input
                     type="number"
-                    value={remittanceAmount}
-                    onChange={e => setRemittanceAmount(Number(e.target.value))}
+                    value={remittanceAmountInput}
+                    onChange={e => handleRemittanceAmountChange(e.target.value)}
                     className="input input-bordered input-lg text-2xl"
                     step="0.01"
                     max="200"
