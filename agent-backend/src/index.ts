@@ -355,8 +355,7 @@ const initializeDemoAgents = () => {
       console.log('   ⚠️  DeFi Pool Agent not initialized (missing credentials in .env)');
     }
 
-  syncCreditAgentDirectoryInstances();
-  syncCreditAgentDirectoryInstances();
+    syncCreditAgentDirectoryInstances();
     console.log('🎉 All demo agents ready!\n');
   } catch (error: any) {
     console.error('❌ Failed to initialize demo agents:', error.message);
@@ -1024,12 +1023,13 @@ app.post('/agents/credit/disburse', async (req, res) => {
       });
     }
 
-    // Get worker's account ID from env
-    const workerAccountId = process.env.WORKER_EVM_ADDRESS || process.env.HEDERA_ACCOUNT_ID;
+    // Get worker's account ID from env - use Hedera Account ID format
+    const workerAccountId = process.env.WORKER_ACCOUNT_ID || process.env.HEDERA_ACCOUNT_ID;
     if (!workerAccountId) {
       return res.status(500).json({ error: 'Worker account not configured' });
     }
 
+    console.log(`💰 Disbursing ${amount} ${currency} from DeFi Pool to Worker ${workerAccountId}...`);
     const result = await defiPoolAgent.disburseLoan(workerAccountId, amount, currency);
 
     res.json(result);
