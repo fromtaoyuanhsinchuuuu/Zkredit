@@ -148,10 +148,25 @@ export default function DemoPage() {
   // API 調用
   const API_BASE = "http://localhost:3003";
   const DEMO_WORKER_AGENT_ID = "1";
+  // Enable Demo Mode if not on localhost (e.g. Vercel)
+  const IS_DEMO_MODE = typeof window !== "undefined" && !["localhost", "127.0.0.1"].includes(window.location.hostname);
 
   useEffect(() => {
+    console.log("Running in:", typeof window !== "undefined" ? window.location.hostname : "server", "| Demo Mode:", IS_DEMO_MODE);
+
     const fetchOperatorInfo = async () => {
       try {
+        if (IS_DEMO_MODE) {
+          // Mock response for Demo Mode
+          setOperatorInfo({
+            accountId: "0.0.123456",
+            evmAddress: "0x71C...3A19",
+            balanceHbars: "1000.00",
+          });
+          setOperatorInfoError(null);
+          return;
+        }
+
         const response = await fetch(`${API_BASE}/operator/info`);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -236,15 +251,46 @@ export default function DemoPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/agents/worker/send-remittance`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: remittanceAmount,
-          receiverAccountId: familyAccountId,
-        }),
-      });
-      const data = await response.json();
+      let data;
+      if (IS_DEMO_MODE) {
+        // Mock response for Demo Mode
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+        data = {
+          success: true,
+          result: {
+            success: true,
+            transactionHash: "0xmocktransactionhash123456789",
+            fee: 1.5,
+            netAmount: remittanceAmount - 1.5,
+            corridor: "US-MX",
+            currency: "HBAR",
+            remittanceEvent: {
+              eventId: "evt-mock-001",
+              workerAgentId: "1",
+              remittanceAgentId: "remit-01",
+              receiverAgentId: "recv-01",
+              corridor: "US-MX",
+              amount: remittanceAmount,
+              fee: 1.5,
+              netAmount: remittanceAmount - 1.5,
+              currency: "HBAR",
+              transactionHash: "0xmocktransactionhash123456789",
+              timestamp: Date.now(),
+            },
+            message: "Remittance processed successfully (Demo Mode)",
+          },
+        };
+      } else {
+        const response = await fetch(`${API_BASE}/agents/worker/send-remittance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: remittanceAmount,
+            receiverAccountId: familyAccountId,
+          }),
+        });
+        data = await response.json();
+      }
 
       if (data.success && data.result) {
         setRemittanceResult(data.result);
@@ -269,8 +315,46 @@ export default function DemoPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/agents/worker/remittances/${DEMO_WORKER_AGENT_ID}`);
-      const data = await response.json();
+      let data;
+      if (IS_DEMO_MODE) {
+        // Mock response for Demo Mode
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+        data = {
+          success: true,
+          history: [
+            {
+              eventId: "evt-mock-001",
+              workerAgentId: "1",
+              remittanceAgentId: "remit-01",
+              receiverAgentId: "recv-01",
+              corridor: "US-MX",
+              amount: 200,
+              fee: 1.5,
+              netAmount: 198.5,
+              currency: "HBAR",
+              transactionHash: "0xmocktransactionhash123456789",
+              timestamp: Date.now(),
+            },
+          ],
+          summary: {
+            monthsWithRemittance: 6,
+            totalVolume: 1200,
+            accountAgeMonths: 12,
+            totalTransactions: 6,
+            events: [],
+          },
+          zkAttributes: {
+            stable_remitter: true,
+            total_remitted_band: "1000-5000",
+            account_age_band: "12m+",
+            months_with_activity: 6,
+            total_transactions: 6,
+          },
+        };
+      } else {
+        const response = await fetch(`${API_BASE}/agents/worker/remittances/${DEMO_WORKER_AGENT_ID}`);
+        data = await response.json();
+      }
 
       if (!data.success) {
         throw new Error(data.error || "Ledger sync failed");
@@ -305,32 +389,122 @@ export default function DemoPage() {
   const handleApplyLoan = async () => {
     setLoading(true);
     try {
-      // Step 1: Generate ZK proofs
-      const proofsResponse = await fetch(`${API_BASE}/agents/worker/apply-loan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: loanAmount,
-        }),
-      });
-      const proofsData = await proofsResponse.json();
+      let proofsData;
+      if (IS_DEMO_MODE) {
+        // Mock response for Demo Mode
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
+        proofsData = {
+          success: true,
+          result: {
+            zkProofs: {
+              incomeProof: "mock-proof-income",
+              identityProof: "mock-proof-identity",
+            },
+            zkAttributes: {
+              creditScore: 750,
+            },
+          },
+        };
+      } else {
+        // Step 1: Generate ZK proofs
+        const proofsResponse = await fetch(`${API_BASE}/agents/worker/apply-loan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: loanAmount,
+          }),
+        });
+        proofsData = await proofsResponse.json();
+      }
 
       if (!proofsData.success || !proofsData.result?.zkProofs) {
         throw new Error("Failed to generate ZK proofs");
       }
 
-      // Step 2: Broadcast to corridor AI credit agents marketplace
-      const loanResponse = await fetch(`${API_BASE}/agents/credit/offers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workerAgentId: DEMO_WORKER_AGENT_ID,
-          requestedAmount: loanAmount,
-          zkProofs: proofsData.result.zkProofs,
-          zkAttributes: proofsData.result.zkAttributes,
-        }),
-      });
-      const loanData = await loanResponse.json();
+      let loanData;
+      if (IS_DEMO_MODE) {
+        // Mock response for Demo Mode
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
+        loanData = {
+          success: true,
+          offers: {
+            offers: [
+              {
+                agentId: "agent-alpha",
+                agentName: "Alpha Credit",
+                sponsor: "Global Bank",
+                corridor: "US-MX",
+                agentType: "Bank",
+                tagline: "Low rates for stable remitters",
+                strengths: ["Low APR", "High Approval"],
+                status: "active",
+                offer: {
+                  amount: loanAmount,
+                  apr: 5.5,
+                  tenureMonths: 12,
+                  disbursementHours: 24,
+                  repaymentFrequency: "Monthly",
+                  approved: true,
+                  rationale: "Strong remittance history",
+                  creditScore: 750,
+                },
+                decision: {
+                  approved: true,
+                  creditScore: 750,
+                  maxLoanAmount: 500,
+                  interestRate: 5.5,
+                  reason: "Good history",
+                  aiAnalysis: "User shows consistent remittance patterns.",
+                },
+              },
+              {
+                agentId: "agent-beta",
+                agentName: "Beta Microfinance",
+                sponsor: "Community Fund",
+                corridor: "US-MX",
+                agentType: "Microfinance",
+                tagline: "Fast approval for everyone",
+                strengths: ["Instant Disbursement"],
+                status: "active",
+                offer: {
+                  amount: loanAmount,
+                  apr: 8.0,
+                  tenureMonths: 6,
+                  disbursementHours: 1,
+                  repaymentFrequency: "Weekly",
+                  approved: true,
+                  rationale: "Acceptable risk profile",
+                  creditScore: 750,
+                },
+                decision: {
+                  approved: true,
+                  creditScore: 750,
+                  maxLoanAmount: 300,
+                  interestRate: 8.0,
+                  reason: "Acceptable risk",
+                  aiAnalysis: "Good candidate for micro-loan.",
+                },
+              },
+            ],
+            selectedOffer: {
+              agentId: "agent-alpha",
+            },
+          },
+        };
+      } else {
+        // Step 2: Broadcast to corridor AI credit agents marketplace
+        const loanResponse = await fetch(`${API_BASE}/agents/credit/offers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workerAgentId: DEMO_WORKER_AGENT_ID,
+            requestedAmount: loanAmount,
+            zkProofs: proofsData.result.zkProofs,
+            zkAttributes: proofsData.result.zkAttributes,
+          }),
+        });
+        loanData = await loanResponse.json();
+      }
 
       if (loanData.success && loanData.offers) {
         const marketplace = loanData.offers;
@@ -372,16 +546,26 @@ export default function DemoPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/agents/credit/disburse`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: selectedOffer.offer.amount,
-          workerAgentId: DEMO_WORKER_AGENT_ID,
-          currency: "HBAR"
-        }),
-      });
-      const data = await response.json();
+      let data;
+      if (IS_DEMO_MODE) {
+        // Mock response for Demo Mode
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+        data = {
+          success: true,
+          transactionHash: "0xmockdisbursementhash123",
+        };
+      } else {
+        const response = await fetch(`${API_BASE}/agents/credit/disburse`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: selectedOffer.offer.amount,
+            workerAgentId: DEMO_WORKER_AGENT_ID,
+            currency: "HBAR",
+          }),
+        });
+        data = await response.json();
+      }
 
       if (data.success) {
         setCurrentStep("result");
@@ -399,7 +583,7 @@ export default function DemoPage() {
   const handleSavingsOption = async (value: string) => {
     // 1. User response
     let userText = "";
-    if (value === "yes") userText = "Yes, help me save";
+    if (value === "yes") userText = "Yes, help me invest";
     else if (value === "no") userText = "No, thanks";
     else if (value === "option1") userText = "I choose Option 1 (Bonzo)";
     else if (value === "option2") userText = "I choose Option 2 (SaucerSwap)";
@@ -1075,9 +1259,9 @@ export default function DemoPage() {
                           <span>
                             Hello. I noticed your wallet balance is currently <strong>{balance} HBAR</strong>.
                             <br />
-                            Instead of leaving these funds idle, you have the option to deposit them into a decentralized savings protocol.
+                            Instead of leaving these funds idle, you have the option to deposit them into a decentralized investment protocol.
                             <br />
-                            This could generate additional yield on your assets. Would you like to explore the available savings strategies?
+                            This could generate additional yield on your assets. Would you like to explore the available investment strategies?
                           </span>
                         ),
                         options: [
@@ -1097,7 +1281,7 @@ export default function DemoPage() {
           {/* Step 9: Savings (Chat Interface) */}
           {currentStep === "savings" && (
             <div className="max-w-2xl mx-auto">
-              <h2 className="card-title text-2xl mb-6 justify-center">📈 Smart Savings Advisor</h2>
+              <h2 className="card-title text-2xl mb-6 justify-center">📈 Smart Investment Advisor</h2>
               
               <div className="bg-base-200 rounded-xl p-4 min-h-[400px] max-h-[600px] overflow-y-auto mb-4 space-y-4">
                 {savingsChatHistory.map((msg, idx) => (
