@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
-type DemoStep = "profile" | "remittance" | "confirm" | "zkproof" | "loan" | "offers" | "result";
+type DemoStep = "profile" | "remittance" | "confirm" | "zkproof" | "loan" | "offers" | "result" | "savings";
 
 interface AgentProfile {
   role: "worker" | "receiver";
@@ -111,13 +111,13 @@ export default function DemoPage() {
   const [currentStep, setCurrentStep] = useState<DemoStep>("profile");
   const [workerProfile, setWorkerProfile] = useState<AgentProfile>({
     role: "worker",
-    name: "Ahmad",
+    name: "Fatima",
     monthlyIncome: 800,
     landValue: 15000,
   });
   const [receiverProfile, setReceiverProfile] = useState<AgentProfile>({
     role: "receiver",
-    name: "Fatima",
+    name: "Ahmad",
   });
   const [familyAccountId, setFamilyAccountId] = useState("");
   const initialRemittanceAmount = 200;
@@ -138,6 +138,12 @@ export default function DemoPage() {
     balanceHbars: string;
   } | null>(null);
   const [operatorInfoError, setOperatorInfoError] = useState<string | null>(null);
+
+  // Savings Step State
+  const [savingsChatHistory, setSavingsChatHistory] = useState<
+    { sender: "agent" | "user"; text: React.ReactNode; options?: { label: string; value: string }[] }[]
+  >([]);
+  const [isSavingsExecuting, setIsSavingsExecuting] = useState(false);
 
   // API 調用
   const API_BASE = "http://localhost:3003";
@@ -390,6 +396,88 @@ export default function DemoPage() {
     }
   };
 
+  const handleSavingsOption = async (value: string) => {
+    // 1. User response
+    let userText = "";
+    if (value === "yes") userText = "Yes, help me save";
+    else if (value === "no") userText = "No, thanks";
+    else if (value === "option1") userText = "I choose Option 1 (Bonzo)";
+    else if (value === "option2") userText = "I choose Option 2 (SaucerSwap)";
+
+    setSavingsChatHistory((prev) => [
+      ...prev,
+      { sender: "user", text: userText },
+    ]);
+
+    // 2. Agent response logic
+    if (value === "yes") {
+      setTimeout(() => {
+        setSavingsChatHistory((prev) => [
+          ...prev,
+          {
+            sender: "agent",
+            text: (
+              <span>
+                Great! I&apos;ve filtered the safest options on Hedera for you:
+                <br /><br />
+                <strong>1. Conservative (Bonzo Finance)</strong>
+                <br />• Return: <strong>4.5% APY</strong>
+                <br />• Risk: Low (Over-collateralized lending)
+                <br /><br />
+                <strong>2. Balanced (SaucerSwap)</strong>
+                <br />• Return: <strong>8.2% APY</strong>
+                <br />• Risk: Medium (Liquidity provision)
+                <br /><br />
+                I recommend <strong>Option 1</strong> for short-term safety.
+              </span>
+            ),
+            options: [
+              { label: "Option 1 (Bonzo)", value: "option1" },
+              { label: "Option 2 (SaucerSwap)", value: "option2" },
+            ],
+          },
+        ]);
+      }, 1000);
+    } else if (value === "no") {
+      setTimeout(() => {
+        setSavingsChatHistory((prev) => [
+          ...prev,
+          { sender: "agent", text: "Understood. Your funds are available in your wallet whenever you need them." },
+        ]);
+      }, 1000);
+    } else if (value === "option1" || value === "option2") {
+      setIsSavingsExecuting(true);
+      
+      // Simulate execution
+      setTimeout(() => {
+        setIsSavingsExecuting(false);
+        const protocol = value === "option1" ? "Bonzo Finance" : "SaucerSwap";
+        const apy = value === "option1" ? "4.5%" : "8.2%";
+        const rawBalance = Number(operatorInfo?.balanceHbars || "0");
+        const balance = rawBalance.toFixed(1);
+        const randomTxId = `0.0.${Math.floor(Math.random() * 800000) + 100000}@${Math.floor(Date.now() / 1000)}.${Math.floor(Math.random() * 1000000000)}`;
+        
+        setSavingsChatHistory((prev) => [
+          ...prev,
+          {
+            sender: "agent",
+            text: (
+              <span>
+                ✅ <strong>Transaction Confirmed!</strong>
+                <br />
+                Successfully deposited {balance} HBAR into <strong>{protocol}</strong>.
+                <br />
+                You are now earning <strong>{apy} APY</strong>.
+                <br />
+                <span className="text-xs opacity-70">Tx Hash: {randomTxId}</span>
+              </span>
+            ),
+          },
+        ]);
+      }, 2500);
+    }
+  };
+
   const renderStepIndicator = () => {
     const steps = [
       { id: "profile", label: "Profile", icon: "👤" },
@@ -399,6 +487,7 @@ export default function DemoPage() {
       { id: "loan", label: "Loan", icon: "💰" },
       { id: "offers", label: "Offers", icon: "📋" },
       { id: "result", label: "Result", icon: "🎉" },
+      { id: "savings", label: "Savings", icon: "📈" },
     ];
 
     const currentIndex = steps.findIndex(s => s.id === currentStep);
@@ -431,7 +520,7 @@ export default function DemoPage() {
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold mb-2">🔐 ZKredit</h1>
-        <p className="text-lg text-base-content/70">Zero-Knowledge Credit System for Cross-Border Workers</p>
+        <p className="text-lg text-base-content/70">The Autonomous Agent Lending On Privacy-Preserved Credit system</p>
       </div>
 
       {/* Step Indicator */}
@@ -591,15 +680,13 @@ export default function DemoPage() {
               <div className="bg-base-200 p-6 rounded-lg mb-6 space-y-3">
                 <div className="flex justify-between">
                   <span>Transaction Hash:</span>
-                  <code className="text-xs">
-                    {remittanceResult.transactionHash
-                      ? remittanceResult.transactionHash.slice(0, 20) + "..."
-                      : "Processing..."}
+                  <code className="text-xs break-all">
+                    {remittanceResult.transactionHash || "Processing..."}
                   </code>
                 </div>
                 <div className="flex justify-between">
                   <span>Corridor:</span>
-                  <span>{remittanceResult.corridor.replace(/-/g, " → ")}</span>
+                  <span>Middle East → Philippines</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Amount Sent:</span>
@@ -656,11 +743,6 @@ export default function DemoPage() {
                       </div>
                       <div className="badge badge-success">✓ Verifiable</div>
                     </div>
-                    <div className="bg-error/10 p-3 rounded mt-2">
-                      <p className="text-xs text-error">
-                        🔒 <strong>Private:</strong> Actual income (${workerProfile.monthlyIncome}) stays hidden
-                      </p>
-                    </div>
                   </div>
                 </div>
 
@@ -674,11 +756,6 @@ export default function DemoPage() {
                         <p className="font-mono">&quot;I have ≥ 1 transaction&quot;</p>
                       </div>
                       <div className="badge badge-success">✓ Verifiable</div>
-                    </div>
-                    <div className="bg-error/10 p-3 rounded mt-2">
-                      <p className="text-xs text-error">
-                        🔒 <strong>Private:</strong> Exact count and amounts stay hidden
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -694,13 +771,9 @@ export default function DemoPage() {
                       </div>
                       <div className="badge badge-success">✓ Verifiable</div>
                     </div>
-                    <div className="bg-error/10 p-3 rounded mt-2">
-                      <p className="text-xs text-error">
-                        🔒 <strong>Private:</strong> GPS location (${workerProfile.landValue}) and exact value hidden
-                      </p>
-                    </div>
                   </div>
                 </div>
+
                 {remittanceLedger && (
                   <div className="card bg-base-200 border border-primary/30">
                     <div className="card-body">
@@ -854,7 +927,7 @@ export default function DemoPage() {
                           </div>
                           <div className="bg-base-200/60 rounded p-3 text-xs space-y-1 mt-3">
                             <p className="font-semibold text-base-content/80">🤖 AI Analysis</p>
-                            <p className="italic">"{offer.offer.rationale}"</p>
+                            <p className="italic">&quot;{offer.offer.rationale}&quot;</p>
                           </div>
                           <ul className="text-xs space-y-1">
                             {offer.strengths.map(str => (
@@ -973,8 +1046,118 @@ export default function DemoPage() {
                 </p>
               </div>
 
+              <div className="flex gap-4 mt-6">
+                <button
+                  className="btn btn-outline flex-1"
+                  onClick={() => {
+                    setCurrentStep("profile");
+                    setRemittanceResult(null);
+                    setLoanMarketplace(null);
+                    setLoanOffers([]);
+                    setSelectedOffer(null);
+                    setLoanResult(null);
+                    setSavingsChatHistory([]);
+                  }}
+                >
+                  Start New Demo
+                </button>
+                <button
+                  className="btn btn-primary flex-1"
+                  onClick={() => {
+                    setCurrentStep("savings");
+                    // Initialize chat
+                    const rawBalance = Number(operatorInfo?.balanceHbars || "0");
+                    const balance = rawBalance.toFixed(1);
+                    setSavingsChatHistory([
+                      {
+                        sender: "agent",
+                        text: (
+                          <span>
+                            Hello. I noticed your wallet balance is currently <strong>{balance} HBAR</strong>.
+                            <br />
+                            Instead of leaving these funds idle, you have the option to deposit them into a decentralized savings protocol.
+                            <br />
+                            This could generate additional yield on your assets. Would you like to explore the available savings strategies?
+                          </span>
+                        ),
+                        options: [
+                          { label: "Yes, show me options", value: "yes" },
+                          { label: "No, thanks", value: "no" },
+                        ],
+                      },
+                    ]);
+                  }}
+                >
+                  Next: Financial Advice →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 9: Savings (Chat Interface) */}
+          {currentStep === "savings" && (
+            <div className="max-w-2xl mx-auto">
+              <h2 className="card-title text-2xl mb-6 justify-center">📈 Smart Savings Advisor</h2>
+              
+              <div className="bg-base-200 rounded-xl p-4 min-h-[400px] max-h-[600px] overflow-y-auto mb-4 space-y-4">
+                {savingsChatHistory.map((msg, idx) => (
+                  <div key={idx} className={`chat ${msg.sender === "agent" ? "chat-start" : "chat-end"}`}>
+                    <div className="chat-image avatar">
+                      <div className="w-10 rounded-full border border-base-300">
+                        <span className="text-2xl flex items-center justify-center h-full">
+                          {msg.sender === "agent" ? "🤖" : "👷"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`chat-bubble ${msg.sender === "agent" ? "chat-bubble-primary" : "chat-bubble-secondary"}`}>
+                      {msg.text}
+                    </div>
+                    {msg.sender === "agent" && msg.options && idx === savingsChatHistory.length - 1 && (
+                      <div className="chat-footer opacity-100 mt-2 flex gap-2">
+                        {msg.options.map((opt) => (
+                          <button
+                            key={opt.value}
+                            className="btn btn-sm btn-outline bg-base-100"
+                            onClick={() => handleSavingsOption(opt.value)}
+                            disabled={isSavingsExecuting}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {isSavingsExecuting && (
+                  <div className="chat chat-start">
+                    <div className="chat-image avatar">
+                      <div className="w-10 rounded-full border border-base-300">
+                        <span className="text-2xl flex items-center justify-center h-full">🤖</span>
+                      </div>
+                    </div>
+                    <div className="chat-bubble chat-bubble-primary">
+                      <span className="loading loading-dots loading-md"></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 mb-4">
+                <input 
+                  type="text" 
+                  placeholder="Type a message..." 
+                  className="input input-bordered w-full" 
+                  disabled 
+                />
+                <button className="btn btn-square btn-primary" disabled>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              </div>
+
               <button
-                className="btn btn-outline w-full mt-6"
+                className="btn btn-ghost btn-sm w-full"
                 onClick={() => {
                   setCurrentStep("profile");
                   setRemittanceResult(null);
@@ -982,35 +1165,13 @@ export default function DemoPage() {
                   setLoanOffers([]);
                   setSelectedOffer(null);
                   setLoanResult(null);
+                  setSavingsChatHistory([]);
                 }}
               >
-                Start New Demo
+                End Demo
               </button>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Info Box */}
-      <div className="mt-8 alert alert-info">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          className="stroke-current shrink-0 w-6 h-6"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          ></path>
-        </svg>
-        <div>
-          <h3 className="font-bold">🚀 Make sure agent backend is running!</h3>
-          <div className="text-xs">
-            Terminal: <code>cd agent-backend && npm start</code>
-          </div>
         </div>
       </div>
     </div>

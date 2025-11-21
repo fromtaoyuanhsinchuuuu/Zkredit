@@ -1,49 +1,18 @@
 import { CreditAssessmentAgent1 } from './CreditAssessmentAgent1';
 
 export class CreditAssessmentAgent2 extends CreditAssessmentAgent1 {
-  protected async makeDecisionWithAI(
-    creditScore: number,
-    requestedAmount: number,
-    verificationResults: any,
-    zkAttributes?: Record<string, any>
-  ) {
-    // Agent 2 considers zkAttributes for better decisions
-    const hasStableRemittance = zkAttributes?.stable_remitter || false;
-    const adjustedRate = hasStableRemittance ? 9 : 10;
-    
-    return {
-      approved: true,
-      maxAmount: requestedAmount,
-      interestRate: adjustedRate,
-      reason: hasStableRemittance
-        ? 'Commercial DeFi LP offer with stable remittance bonus for Middle East → Philippines corridor borrowers with zk_verified histories.'
-        : 'Commercial DeFi LP offer for Middle East → Philippines corridor borrowers with zk_verified histories.',
-      aiAnalysis: JSON.stringify({
-        creditScore,
-        requestedAmount,
-        verificationResults,
-        zkAttributes,
-        repaymentPlan: {
-          months: 4,
-          installment: (requestedAmount / 4).toFixed(2),
-        },
-        corridor: 'MENA->PHL',
-        notes: hasStableRemittance
-          ? 'A2 decision generated offline for demo. Bonus rate for stable remitter behavior.'
-          : 'A2 decision generated offline for demo. Standard offer for corridor.',
-      }),
-      repaymentMonths: 4,
-    } as const;
-  }
-
-  protected fallbackDecision(creditScore: number, requestedAmount: number) {
-    return {
-      approved: true,
-      maxAmount: requestedAmount,
-      interestRate: 10,
-      reason: `Fallback decision: ${requestedAmount} HBAR over 4 months at 10% APR (Agent 2).`,
-      aiAnalysis: 'Fallback path for Agent 2',
-      repaymentMonths: 4,
-    } as const;
+  protected getSystemPrompt(): string {
+    return `You are the "Global NGO Alliance" agent for ZKredit.
+            Your mission is humanitarian aid and financial inclusion for migrant workers.
+            You prioritize applicants who show stability and consistent support for their families (remittances).
+            You are NOT a commercial bank. You are a non-profit helper.
+            
+            Guidelines:
+            1. If the applicant has "stable_remitter" attribute, offer very favorable terms (low interest).
+            2. Be encouraging and supportive in your "reason" text.
+            3. Current Timestamp: ${new Date().toISOString()} (Ensure unique analysis).
+            
+            Return ONLY a single JSON object with fields: approved (boolean), maxAmount (number), interestRate (number), reason (string).
+            No markdown, no extra text.`;
   }
 }

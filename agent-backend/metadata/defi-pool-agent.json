@@ -1,0 +1,44 @@
+{
+  "name": "ZKredit DefiPoolAgent",
+  "version": "1.0.0",
+  "description": "DeFi liquidity pool agent for automated loan disbursement on Hedera network",
+  "standard": "ERC-8004",
+  "network": "hedera-testnet",
+  "capabilities": [
+    "loan-disbursement",
+    "liquidity-management",
+    "automated-transfers",
+    "pool-balance-tracking"
+  ],
+  "features": {
+    "poolManagement": {
+      "currency": "HBAR",
+      "currentBalance": "250 HBAR",
+      "maxLoanSize": "100 HBAR",
+      "autoDisburse": true
+    },
+    "disbursement": {
+      "protocol": "hedera-transfer",
+      "confirmationTime": "3-5 seconds",
+      "gasFee": "~0.05 HBAR"
+    }
+  },
+  "endpoints": {
+    "api": "http://localhost:3003/api/defi-pool",
+    "disburse": "POST /agents/credit/disburse",
+    "balance": "GET /api/defi-pool/balance"
+  },
+  "poolAddress": {
+    "accountId": "0.0.7179264",
+    "evmAddress": "0x947ff365b7099ac8b90e4f1024fc8a2f6d2f3ed4"
+  },
+  "security": {
+    "keyType": "ecdsa-secp256k1",
+    "network": "hedera-testnet"
+  },
+  "metadata": {
+    "author": "ZKredit Team",
+    "license": "MIT",
+    "repository": "https://github.com/fromtaoyuanhsinchuuuu/ZKredit"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "ZKredit WorkerAgent",
+  "version": "1.0.0",
+  "description": "Remittance worker agent with ZK proof generation capabilities for cross-border payments",
+  "standard": "ERC-8004",
+  "network": "hedera-testnet",
+  "capabilities": [
+    "remittance-execution",
+    "zk-proof-generation",
+    "credit-application",
+    "x402-payment",
+    "hcs-logging"
+  ],
+  "features": {
+    "zkProofs": {
+      "creditHistory": true,
+      "incomeVerification": true,
+      "collateralProof": true
+    },
+    "payment": {
+      "protocol": "x402",
+      "currencies": ["HBAR"],
+      "maxAmount": "200 HBAR"
+    },
+    "corridors": [
+      "middle-east-to-philippines",
+      "usa-to-mexico",
+      "europe-to-africa"
+    ]
+  },
+  "endpoints": {
+    "api": "http://localhost:3003/api/worker",
+    "remittance": "POST /agents/worker/remittance",
+    "zkProofs": "POST /agents/worker/generate-proofs"
+  },
+  "security": {
+    "authentication": "hedera-ecdsa",
+    "encryption": "secp256k1",
+    "zkFramework": "noir"
+  },
+  "metadata": {
+    "author": "ZKredit Team",
+    "license": "MIT",
+    "repository": "https://github.com/fromtaoyuanhsinchuuuu/ZKredit",
+    "documentation": "https://github.com/fromtaoyuanhsinchuuuu/ZKredit/blob/main/README.md"
+  }
+}

@@ -127,7 +127,7 @@ export class CreditAssessmentAgent1 {
     const incomeValid = this.verifyProof(zkProofs.income, 'income');
     console.log('✅ Income Proof Verified:', incomeValid);
     console.log(`   Public: income > $${zkProofs.income.publicInputs.minimumIncome}`);
-    console.log('   ❌ Private: Actual amount HIDDEN\n');
+    console.log('   🔒 Private: Actual amount HIDDEN\n');
 
     // Verify Credit History Proof
     let creditValid = false;
@@ -144,7 +144,7 @@ export class CreditAssessmentAgent1 {
       console.log(`   Public: transactions >= ${creditProof.publicInputs.minimumTransactions}`);
       console.log(`   Public: Merkle Root = ${creditProof.publicInputs.merkleRoot.slice(0, 10)}...`);
       console.log(`   Public Noir Inputs: ${creditProof.noirArtifacts?.noirPublicInputs.join(', ') || 'n/a'}`);
-      console.log('   ❌ Private: Exact count and amounts HIDDEN\n');
+      console.log('   🔒 Private: Exact count and amounts HIDDEN\n');
     }
 
     // Verify Collateral Proof
@@ -152,7 +152,7 @@ export class CreditAssessmentAgent1 {
     console.log('✅ Collateral Proof Verified:', collateralValid);
     console.log(`   Public: value > $${zkProofs.collateral.publicInputs.minimumValue}`);
     console.log(`   Public: Country = ${zkProofs.collateral.publicInputs.countryCode}`);
-    console.log('   ❌ Private: Exact value and GPS location HIDDEN\n');
+    console.log('   🔒 Private: Exact value and GPS location HIDDEN\n');
 
     return {
       income: incomeValid,
@@ -298,27 +298,25 @@ Please respond with ONLY a JSON object, no extra commentary, no markdown.
     }
 
     try {
+      console.log('🤖 Connecting to LLM for analysis...');
       const completion = await this.groq.chat.completions.create({
         messages: [
           {
             role: 'system',
-            content: `You are an AI credit assessment agent for ZKredit, a ZK-powered lending platform for cross-border workers.
-                      Your role is to make fair lending decisions based on verified ZK proofs while considering the unique challenges
-                      faced by migrant workers who may lack traditional credit history.
-                      Return ONLY a single JSON object, no explanation, no markdown, no extra text.`
+            content: this.getSystemPrompt()
           },
           {
             role: 'user',
             content: prompt
           }
         ],
-        model: 'openai/gpt-oss-120b',
-        temperature: 0.3,
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.8,
         max_tokens: 1024
       });
 
       const aiResponse = completion.choices[0]?.message?.content || '';
-      console.log('🤖 AI Analysis:');
+      console.log('🤖 AI Analysis Received:');
       console.log(aiResponse);
 
       // Parse AI response
@@ -416,6 +414,7 @@ Please respond with ONLY a JSON object, no extra commentary, no markdown.
 
   /**
    * Log assessment result to blockchain (ERC-8004 + HCS)
+   * REAL ERC-8004 IMPLEMENTATION - submits feedback to ReputationRegistry
    */
   private async logAssessmentToBlockchain(data: {
     applicantAgentId: string;
@@ -423,21 +422,83 @@ Please respond with ONLY a JSON object, no extra commentary, no markdown.
     decision: any;
     verificationResults: any;
   }): Promise<void> {
-    console.log('📝 Logging to blockchain...');
+    console.log('📝 Logging to ERC-8004 ReputationRegistry...');
 
     try {
-      // In production: call ERC-8004 ReputationRegistry.giveFeedback()
-      // For demo: just log the action
-      console.log('✅ Assessment logged to ERC-8004 ReputationRegistry');
-      console.log(`   Agent: ${data.applicantAgentId}`);
-      console.log(`   Credit Score: ${data.creditScore}`);
-      console.log(`   Decision: ${data.decision.approved ? 'APPROVED' : 'REJECTED'}`);
+      // Convert credit score (0-110) to feedback score (0-100)
+      const feedbackScore = Math.min(100, Math.floor((data.creditScore / 110) * 100));
       
-      // Could also log to HCS (Hedera Consensus Service) for audit trail
-      console.log('✅ Audit trail logged to HCS');
-    } catch (error) {
-      console.error('❌ Blockchain logging failed:', error);
+      // Prepare tags for categorization
+      const tag1 = Buffer.from(data.decision.approved ? 'approved' : 'rejected').toString('hex').padEnd(64, '0');
+      const tag2 = Buffer.from('credit-assessment').toString('hex').padEnd(64, '0');
+      
+      // Generate feedback URI (in production, this would be IPFS)
+      const feedbackData = {
+        agentId: data.applicantAgentId,
+        creditScore: data.creditScore,
+        decision: data.decision,
+        timestamp: new Date().toISOString(),
+        assessor: this.agentId.toString(),
+      };
+      const feedbackJson = JSON.stringify(feedbackData);
+      const feedbackUri = `data:application/json;base64,${Buffer.from(feedbackJson).toString('base64')}`;
+      
+      // Calculate feedback hash
+      const crypto = require('crypto');
+      const feedbackHash = '0x' + crypto.createHash('sha256').update(feedbackJson).digest('hex');
+
+      // For demo: We'll skip the full FeedbackAuth signature generation
+      // In production, you would call generateFeedbackAuthForClient()
+      // For now, create a dummy 289-byte feedbackAuth (224 bytes struct + 65 bytes signature)
+      const dummyFeedbackAuth = Buffer.alloc(289, 0);
+
+      console.log(`   📊 Feedback Score: ${feedbackScore}/100`);
+      console.log(`   🏷️  Tags: ${data.decision.approved ? 'approved' : 'rejected'}, credit-assessment`);
+      console.log(`   📄 Feedback URI: ${feedbackUri.substring(0, 50)}...`);
+      console.log(`   #️⃣  Feedback Hash: ${feedbackHash.substring(0, 20)}...`);
+
+      // Execute contract transaction
+      const functionParams = new ContractFunctionParameters()
+        .addUint256(Number(data.applicantAgentId)) // agentId
+        .addUint8(feedbackScore) // score (0-100)
+        .addBytes32(Buffer.from(tag1, 'hex')) // tag1
+        .addBytes32(Buffer.from(tag2, 'hex')) // tag2
+        .addString(feedbackUri) // feedbackUri
+        .addBytes32(Buffer.from(feedbackHash.slice(2), 'hex')) // feedbackHash
+        .addBytes(dummyFeedbackAuth); // feedbackAuth
+
+      const transaction = new ContractExecuteTransaction()
+        .setContractId(this.contractAddresses.reputationRegistry)
+        .setGas(800_000)
+        .setFunction('giveFeedback', functionParams);
+
+      console.log(`   🔄 Executing transaction to ${this.contractAddresses.reputationRegistry}...`);
+      
+      const txResponse = await transaction.execute(this.client);
+      const receipt = await txResponse.getReceipt(this.client);
+
+      console.log('   ✅ Assessment logged to ERC-8004 ReputationRegistry');
+      console.log(`   📋 Transaction ID: ${txResponse.transactionId.toString()}`);
+      console.log(`   ✔️  Status: ${receipt.status.toString()}`);
+      console.log(`   🔗 View on HashScan: https://hashscan.io/testnet/transaction/${txResponse.transactionId.toString()}`);
+      
+    } catch (error: any) {
+      console.error('❌ ERC-8004 blockchain logging failed:', error.message);
+      console.error('   ⚠️  Continuing without on-chain logging...');
+      // Don't throw - we want the assessment to succeed even if logging fails
     }
+  }
+
+  /**
+   * Get the system prompt for the AI agent.
+   * Can be overridden by subclasses to define different agent personas.
+   */
+  protected getSystemPrompt(): string {
+    return `You are an AI credit assessment agent for ZKredit, a ZK-powered lending platform for cross-border workers.
+            Your role is to make fair lending decisions based on verified ZK proofs while considering the unique challenges
+            faced by migrant workers who may lack traditional credit history.
+            Current Timestamp: ${new Date().toISOString()} (Use this to ensure unique analysis).
+            Return ONLY a single JSON object, no explanation, no markdown, no extra text.`;
   }
 
   // Getters

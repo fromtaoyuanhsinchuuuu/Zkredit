@@ -1,0 +1,51 @@
+{
+  "name": "ZKredit CreditAssessmentAgent #1",
+  "version": "1.0.0",
+  "description": "ZK verifier agent that validates credit history proofs and makes AI-powered lending decisions",
+  "standard": "ERC-8004",
+  "network": "hedera-testnet",
+  "capabilities": [
+    "credit-assessment",
+    "zk-proof-verification",
+    "ai-decision-making",
+    "reputation-scoring",
+    "erc8004-feedback"
+  ],
+  "features": {
+    "zkVerification": {
+      "incomeProofs": true,
+      "creditHistoryProofs": true,
+      "collateralProofs": true,
+      "framework": "noir"
+    },
+    "aiModel": {
+      "provider": "groq",
+      "model": "mixtral-8x7b-32768",
+      "capabilities": ["credit-scoring", "risk-analysis", "decision-explanation"]
+    },
+    "scoring": {
+      "range": "0-110",
+      "factors": ["income", "credit-history", "collateral", "zkAttributes", "on-chain-reputation"],
+      "aiWeighted": true
+    }
+  },
+  "endpoints": {
+    "api": "http://localhost:3003/api/credit-agent-1",
+    "assessment": "POST /agents/credit/offers",
+    "feedback": "POST /tools/submitFeedback"
+  },
+  "contracts": {
+    "identityRegistry": "0x1FCE50d8F7B53d18d458Cf009dA2AD7cf0F2464d",
+    "reputationRegistry": "0xfe5270a6339d9C05A37dA0f59AdF6c9c77AC7d7a"
+  },
+  "security": {
+    "zkFramework": "noir",
+    "aiProvider": "groq",
+    "blockchain": "hedera-testnet"
+  },
+  "metadata": {
+    "author": "ZKredit Team",
+    "license": "MIT",
+    "repository": "https://github.com/fromtaoyuanhsinchuuuu/ZKredit"
+  }
+}
